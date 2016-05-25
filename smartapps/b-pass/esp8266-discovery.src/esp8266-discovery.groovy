@@ -68,12 +68,12 @@ def initialize() {
 
 void ssdpDiscover() {
 	log.debug "inside ssdpDiscover"
-	sendHubCommand(new physicalgraph.device.HubAction("lan discovery urn:schemas-upnp-org:device:esp8266_huzzah", physicalgraph.device.Protocol.LAN))
+	sendHubCommand(new physicalgraph.device.HubAction("lan discovery urn:schemas-upnp-org:device:esp8266_huzzah:1", physicalgraph.device.Protocol.LAN))
 }
 
 void ssdpSubscribe() {
 	log.debug "inside ssdpSubscribe"
-	subscribe(location, "ssdpTerm.urn:schemas-upnp-org:device:esp8266_huzzah", ssdpHandler)
+	subscribe(location, "ssdpTerm.urn:schemas-upnp-org:device:esp8266_huzzah:1", ssdpHandler)
 }
 
 Map verifiedDevices() {
@@ -117,6 +117,8 @@ def addDevices() {
 	log.debug "inside addDevices"
     
 	def devices = getDevices()
+    
+    log.debug "devices=${devices}"
 
 	selectedDevices.each { dni ->
 		def selectedDevice = devices.find { it.value.mac == dni }
@@ -129,7 +131,7 @@ def addDevices() {
 
 		if (!d) {
 			log.debug "Creating Device with dni: ${selectedDevice.value.mac}"
-			addChildDevice("b-pass", "ESP8266 UPnP Device", selectedDevice.value.mac, selectedDevice.value.hub, [
+			addChildDevice("b-pass", "ESP8266", selectedDevice.value.mac, selectedDevice.value.hub, [
 				"label": selectedDevice.value.name ?: "UPnP Device",
 				"data": [
 					"mac": selectedDevice.value.mac,
@@ -142,7 +144,7 @@ def addDevices() {
 }
 
 def ssdpHandler(evt) {
-	log.debug "inside ssdpHandler"
+	log.debug "inside ssdpHandler ${evt}"
     
 	def description = evt.description
 	def hub = evt?.hubId
@@ -168,7 +170,7 @@ def ssdpHandler(evt) {
 }
 
 void deviceDescriptionHandler(physicalgraph.device.HubResponse hubResponse) {
-	log.debug "inside deviceDescriptionHandler"
+	log.debug "inside deviceDescriptionHandler ${hubResponse}"
     
 	def body = hubResponse.xml
 	def devices = getDevices()
