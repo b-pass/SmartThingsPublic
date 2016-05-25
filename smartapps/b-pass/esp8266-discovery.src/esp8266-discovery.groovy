@@ -129,7 +129,7 @@ def addDevices() {
 
 		if (!d) {
 			log.debug "Creating Device with dni: ${selectedDevice.value.mac}"
-			addChildDevice("pass_things", "ESP8266 UPnP Device", selectedDevice.value.mac, selectedDevice.value.hub, [
+			addChildDevice("b-pass", "ESP8266 UPnP Device", selectedDevice.value.mac, selectedDevice.value.hub, [
 				"label": selectedDevice.value.name ?: "UPnP Device",
 				"data": [
 					"mac": selectedDevice.value.mac,
