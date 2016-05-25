@@ -1,6 +1,6 @@
 /*
-ESP8266 Device, talks to an ESP8266 running "smartthings_lux.ino"
-The device is Discovered/Added to SmartThings via the SmartApp device discovery at: https://github.com/b-pass/SmartThingsPublic/smartapps/b-pass/ESP8266-Discovery.src/ESP8266-Discovery.groovy
+ESP8266 Device, talks to an ESP8266 running "smartthings_lux/smartthings_lux.ino"
+The device is Discovered/Added to SmartThings via the SmartApp device discovery at: https://github.com/b-pass/SmartThingsPublic/smartapps/b-pass/esp8266-discovery.src/esp8266-discovery.groovy
 */
 metadata {
 	definition (name: "esp8266", 
