@@ -18,9 +18,9 @@ metadata {
 		valueTile("illuminance", "device.illuminance", decoration: "flat") {
 			state "luminosity", label:'${currentValue} lux'
 		}
-    standardTile("refresh", "null", inactiveLabel: false, decoration: "flat") {
-      state "default", label:"", action:"refresh.refresh", icon:"st.secondary.refresh"
-    }
+        standardTile("refresh", "null", inactiveLabel: false, decoration: "flat") {
+			state "default", label:"", action:"refresh.refresh", icon:"st.secondary.refresh"
+		}
 		main "illuminance"
 		details "illuminance", "refresh"
 	}
