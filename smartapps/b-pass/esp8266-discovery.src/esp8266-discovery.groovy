@@ -1,6 +1,6 @@
 /**
-ESP8266 Discovery App, talks to an ESP8266 running: https://github.com/b-pass/SmartThingsPublic/smartapps/b-pass/ESP8266.src/smartthings_lux.ino
-Adds these type devices: https://github.com/b-pass/SmartThingsPublic/smartapps/b-pass/ESP8266.src/ESP8266.groovy
+ESP8266 Discovery App, talks to an ESP8266 running: https://github.com/b-pass/SmartThingsPublic/smartapps/b-pass/ESP8266.src/smartthings_lux/
+Adds these type devices: https://github.com/b-pass/SmartThingsPublic/smartapps/b-pass/esp8266.src/esp8266.groovy
 */
 definition(
 		name: "ESP8266-Discovery",
