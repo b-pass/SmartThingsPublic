@@ -5,7 +5,7 @@ The device is Discovered/Added to SmartThings via the SmartApp device discovery 
 metadata {
 	definition (name: "esp8266", 
               namespace: "b-pass",
-              author: "B. Pass") {
+              author: "B.Pass") {
 		capability "Illuminance Measurement"
 		capability "Sensor"
 		capability "Refresh"
