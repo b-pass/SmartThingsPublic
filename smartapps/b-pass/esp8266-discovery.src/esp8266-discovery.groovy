@@ -32,7 +32,7 @@ def deviceDiscovery() {
 	verifyDevices()
 
 	return dynamicPage(name: "deviceDiscovery", title: "Discovery Started!", nextPage: "", refreshInterval: 5, install: true, uninstall: true) {
-		section("Please wait while we discover your UPnP Device. Discovery can take five minutes or more, so sit back and relax! Select your device below once discovered.") {
+		section("Please wait while we discover your UPnP Device. (Relax, discovery can take several seconds.) Select your device below once discovered.") {
 			input "selectedDevices", "enum", required: false, title: "Select Devices (${options.size() ?: 0} found)", multiple: true, options: options
 		}
 	}
