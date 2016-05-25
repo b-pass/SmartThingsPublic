@@ -3,7 +3,7 @@ ESP8266 Discovery App, talks to an ESP8266 running: https://github.com/b-pass/Sm
 Adds these type devices: https://github.com/b-pass/SmartThingsPublic/smartapps/b-pass/ESP8266.src/ESP8266.groovy
 */
 definition(
-		name: "ESP8266 UPnP Service Manager",
+		name: "ESP8266-Discovery",
 		namespace: "b-pass",
 		author: "B. Pass",
 		description: "Discovers ESP8266-based things",
