@@ -3,10 +3,9 @@ ESP8266 Device, talks to an ESP8266 running "smartthings_lux.ino"
 The device is Discovered/Added to SmartThings via the SmartApp device discovery at: https://github.com/b-pass/SmartThingsPublic/smartapps/b-pass/ESP8266-Discovery.src/ESP8266-Discovery.groovy
 */
 metadata {
-	definition (name: "ESP8266 UPnP Device", 
+	definition (name: "esp8266", 
               namespace: "b-pass",
-              author: "B. Pass",
-              category: "My Apps") {
+              author: "B. Pass") {
 		capability "Illuminance Measurement"
 		capability "Sensor"
 		capability "Refresh"
