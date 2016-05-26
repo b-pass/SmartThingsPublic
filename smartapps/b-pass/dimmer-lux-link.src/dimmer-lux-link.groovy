@@ -23,18 +23,17 @@ definition(
     iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience@2x.png",
     iconX3Url: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience@2x.png")
 
-
 preferences {
 	section("Things") {
 		input "luxSensor", "capability.illuminanceMeasurement", title:"Light Sensor", required: true
-		input "dimmer", "capability.switch level", title:"Dimmer Switch", required: true
+		input "dimmer", "capability.switchLevel", title:"Dimmer Switch", required: true
 	}
     section("Desired accuracy:") {
     	input "luxAccuracy", "decimal", default:1.0, required: false, title:"Lux"
     }
 	section("Target levels:") {
-		input "nightLux", "number", default:20, required: true, title:"Night"
-		input "dayLux", "number", default:40, required: true, title:"Day"
+		input "nightLux", "decimal", default:20, required: true, title:"Night"
+		input "dayLux", "decimal", default:40, required: true, title:"Day"
 	}
     section("Special Times") {
     	input "noOnAt", "time", required: false, title:"Stop turning on"
@@ -43,21 +42,94 @@ preferences {
 }
 
 def installed() {
+	log.debug "setup subscriptions"
 	subscribe(luxSensor, "illuminance", luxHandler)
     subscribe(dimmer, "switch", switchHandler)
+    subscribe(dimmer, "switchLevel", dimmerHandler)
 }
 
 def updated() {
+	log.debug "updated"
 	unsubscribe()
     installed()
 }
 
+def getLuxTarget() {
+	def cal = getSunriseAndSunset()
+	if (cal.sunrise.getTime() >= now() || cal.sunset.getTime() < now())
+    	return nightLux
+    else
+    	return dayLux
+}
+
 def luxHandler(evt) {
-	log.debug "lux: ${evt.value}"
+	log.trace "lux val: ${evt.value}, ${dimmer.currentSwitch}, ${dimmer.currentLevel}"
     
+    def oldLux = state.oldLux
+    if (oldLux == null)
+    	oldLux = 0
+    state.oldLux = evt.value
+    
+    if (state.squelchUntil > now())
+    	return
+    
+    def targetLux = getLuxTarget()
+    
+    if (dimmer.currentSwitch == "off" && 
+    	oldLux >= targetLux && evt.value < targetLux)
+   	{
+    	if (Date.parse("yyy-MM-dd'T'HH:mm:ss.SSSZ", noOnAt).getTime() >= now)
+        {
+        	log.debug "Not turning the light on because it's after ${noOnAt}"
+        }
+        else
+        {
+            log.info "It's getting dark in here (${evt.value}) so turning the light on"
+            dimmer.setLevel(10)
+            dimmer.on()
+            state.squelchUntil = now() + 60*1000
+        }
+        return
+    }
+    
+    if (dimmer.currentSwitch == "on")
+    {
+        def level = dimmer.currentLevel
+    	if (evt.value < (targetLux - luxAccuracy) && level < 100)
+        {
+        	level += 1
+            if (evt.value < (targetLux - luxAccuracy*2) && level < 95)
+            	level += 1
+            log.info "It's getting dark in here (${evt.value}) so I'm increasing the dimmer to ${level}"
+            dimmer.setLevel(level)
+            return
+        }
+        
+        if (evt.value > (targetLux + luxAccuracy))
+        {
+        	if (level < 10)
+            {
+            	log.info "It's plenty bright in here (${evt.value}) so I'm turning the light off"
+                dimmer.off()
+        		state.squelchUntil = now() + 90*1000
+                return
+            }
+            
+            level -= 1
+            if (evt.value > (targetLux + luxAccuracy*2))
+            	level -= 1
+                
+           	log.info "It's bright in here (${evt.value}) so I'm decreasing the dimmer to ${level}"
+            dimmer.setLevel(level)
+            return
+    	}
+    }
 }
 
 def switchHandler(evt) {
-	log.debug "switch: ${evt.value}"
-    
+    state.squelchUntil = now() + 60*1000
+}
+
+def dimmerHandler(evt) {
+    state.squelchUntil = now() + 120*1000
 }
