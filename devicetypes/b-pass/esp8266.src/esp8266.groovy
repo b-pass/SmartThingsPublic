@@ -68,23 +68,6 @@ def parse(String description) {
     return
   }
   
-  if (!state.sid || (msg?.headers?.seq != null && msg.headers.seq?.toInteger() == 0))
-  {
-    log.debug "Updated subscription from ${state.sid} to ${msg?.headers?.sid}"
-    state.sid = msg?.headers?.sid
-  }
-  
-  if (state.sid != msg?.headers?.sid)
-  {
-    log.debug "Expected sid ${state.sid} doesn't match supplied sid ${msg?.headers?.sid}"
-    return
-  }
-  
-  log.debug "Got value ${msg?.xml} on sid ${state.sid}"
-  
-  //log.debug "json is ${msg?.json}"
-  //log.debug "xml is ${msg?.xml}"
-  
   // status is null if it's an http request (such as NOTIFY)
   if (msg.status && msg.status != 200)
   {
@@ -92,7 +75,24 @@ def parse(String description) {
     return
   }
   
-  if (!msg?.xml)
+  if ((msg.headers?.seq && msg.headers?.seq.toInteger() == 0) || !state.sid)
+  {
+    log.debug "Updated subscription from ${state.sid} to ${msg.headers?.sid}"
+    state.sid = msg.headers?.sid
+  }
+  
+  if (state.sid != msg.headers?.sid)
+  {
+    log.debug "Expected sid ${state.sid} doesn't match supplied sid ${msg.headers?.sid}"
+    return
+  }
+  
+  log.trace "Got value ${msg.xml} on sid ${state.sid}"
+  
+  //log.debug "json is ${msg?.json}"
+  //log.debug "xml is ${msg?.xml}"
+  
+  if (!msg.xml)
     return // nothing to do
   
   return [createEvent([
@@ -117,7 +117,6 @@ log.trace "sync ${ip}, ${port}"
 def doSubscribe(callbackPath="") {
     log.trace "doSubscribe($callbackPath)"
     
-    state.sid = null;
     sendHubCommand(new physicalgraph.device.HubAction(
         method: "SUBSCRIBE",
         path: "/subscribe",
