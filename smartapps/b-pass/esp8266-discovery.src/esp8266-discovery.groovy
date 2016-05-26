@@ -67,12 +67,12 @@ def initialize() {
 }
 
 void ssdpDiscover() {
-	log.debug "inside ssdpDiscover"
+	log.trace "inside ssdpDiscover"
 	sendHubCommand(new physicalgraph.device.HubAction("lan discovery urn:schemas-upnp-org:device:esp8266_huzzah:1", physicalgraph.device.Protocol.LAN))
 }
 
 void ssdpSubscribe() {
-	log.debug "inside ssdpSubscribe"
+	//log.debug "inside ssdpSubscribe"
 	subscribe(location, "ssdpTerm.urn:schemas-upnp-org:device:esp8266_huzzah:1", ssdpHandler)
 }
 
@@ -106,7 +106,7 @@ def getVerifiedDevices() {
 }
 
 def getDevices() {
-	log.debug "inside getDevices"
+	//log.debug "inside getDevices"
 	if (!state.devices) {
 		state.devices = [:]
 	}
@@ -144,7 +144,7 @@ def addDevices() {
 }
 
 def ssdpHandler(evt) {
-	log.debug "inside ssdpHandler ${evt}"
+	//log.debug "inside ssdpHandler ${evt}"
     
 	def description = evt.description
 	def hub = evt?.hubId
@@ -170,7 +170,7 @@ def ssdpHandler(evt) {
 }
 
 void deviceDescriptionHandler(physicalgraph.device.HubResponse hubResponse) {
-	log.debug "inside deviceDescriptionHandler ${hubResponse}"
+	//log.debug "inside deviceDescriptionHandler ${hubResponse}"
     
 	def body = hubResponse.xml
 	def devices = getDevices()
