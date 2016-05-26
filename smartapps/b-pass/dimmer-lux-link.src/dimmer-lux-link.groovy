@@ -1,7 +1,7 @@
 /**
  *  Dimmer Lux Link
  *
- *  Copyright 2016 B Pass
+ *  Copyright 2016 B. Pass
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
@@ -73,17 +73,17 @@ def getLuxTarget() {
 }
 
 def luxHandler(evt) {
-    def oldLux = state.oldLux
-    def currentLux = state.oldLux = evt.floatValue
-    
-    if (oldLux == null)
-    	return // first run
-    
     if (state.squelchUntil > now())
     {
     	log.debug "squlech ${state.squelchUntil} ... ${now()}"
     	return
     }
+    
+    def oldLux = state.oldLux
+    def currentLux = state.oldLux = evt.doubleValue
+    
+    if (oldLux == null)
+    	return // first run
     
     def targetLux = getLuxTarget()
     
@@ -99,6 +99,7 @@ def luxHandler(evt) {
             log.info "It's getting dark in here (${currentLux}) so turning the light on"
             dimmer.setLevel(10)
             dimmer.on()
+            dimmer.setLevel(10)
             state.squelchUntil = now() + 60*1000
         }
         return
