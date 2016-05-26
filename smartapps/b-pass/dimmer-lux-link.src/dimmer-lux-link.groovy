@@ -42,41 +42,53 @@ preferences {
 }
 
 def installed() {
-	log.debug "setup subscriptions"
+	log.debug "installed"
+    
+    state.squelchUntil = 0
+    state.oldLux = null
+    
 	subscribe(luxSensor, "illuminance", luxHandler)
     subscribe(dimmer, "switch", switchHandler)
     subscribe(dimmer, "switchLevel", dimmerHandler)
 }
 
 def updated() {
-	log.debug "updated"
 	unsubscribe()
-    installed()
+    
+    state.squelchUntil = 0
+    state.oldLux = null
+    
+	subscribe(luxSensor, "illuminance", luxHandler)
+    subscribe(dimmer, "switch", switchHandler)
+    subscribe(dimmer, "switchLevel", dimmerHandler)
+	log.debug "updated"
 }
 
 def getLuxTarget() {
 	def cal = getSunriseAndSunset()
-	if (cal.sunrise.getTime() >= now() || cal.sunset.getTime() < now())
+	if (now() < cal.sunrise.getTime() || now() >= cal.sunset.getTime())
     	return nightLux
     else
     	return dayLux
 }
 
 def luxHandler(evt) {
-	log.trace "lux val: ${evt.value}, ${dimmer.currentSwitch}, ${dimmer.currentLevel}"
-    
     def oldLux = state.oldLux
+    def currentLux = state.oldLux = evt.floatValue
+    
     if (oldLux == null)
-    	oldLux = 0
-    state.oldLux = evt.value
+    	return // first run
     
     if (state.squelchUntil > now())
+    {
+    	log.debug "squlech ${state.squelchUntil} ... ${now()}"
     	return
+    }
     
     def targetLux = getLuxTarget()
     
     if (dimmer.currentSwitch == "off" && 
-    	oldLux >= targetLux && evt.value < targetLux)
+    	oldLux >= targetLux && currentLux < targetLux)
    	{
     	if (Date.parse("yyy-MM-dd'T'HH:mm:ss.SSSZ", noOnAt).getTime() >= now)
         {
@@ -84,7 +96,7 @@ def luxHandler(evt) {
         }
         else
         {
-            log.info "It's getting dark in here (${evt.value}) so turning the light on"
+            log.info "It's getting dark in here (${currentLux}) so turning the light on"
             dimmer.setLevel(10)
             dimmer.on()
             state.squelchUntil = now() + 60*1000
@@ -95,31 +107,31 @@ def luxHandler(evt) {
     if (dimmer.currentSwitch == "on")
     {
         def level = dimmer.currentLevel
-    	if (evt.value < (targetLux - luxAccuracy) && level < 100)
+    	if (currentLux < (targetLux - luxAccuracy) && level < 100)
         {
         	level += 1
-            if (evt.value < (targetLux - luxAccuracy*2) && level < 95)
+            if (currentLux < (targetLux - luxAccuracy*2) && level < 100)
             	level += 1
-            log.info "It's getting dark in here (${evt.value}) so I'm increasing the dimmer to ${level}"
+            log.info "It's getting dark in here (${currentLux}) so I'm increasing the dimmer to ${level}"
             dimmer.setLevel(level)
             return
         }
         
-        if (evt.value > (targetLux + luxAccuracy))
+        if (currentLux > (targetLux + luxAccuracy))
         {
-        	if (level < 10)
+        	if (level <= 10)
             {
-            	log.info "It's plenty bright in here (${evt.value}) so I'm turning the light off"
+            	log.info "It's plenty bright in here (${currentLux}) so I'm turning the light off"
                 dimmer.off()
         		state.squelchUntil = now() + 90*1000
                 return
             }
             
             level -= 1
-            if (evt.value > (targetLux + luxAccuracy*2))
+            if (currentLux > (targetLux + luxAccuracy*2) && level > 10)
             	level -= 1
-                
-           	log.info "It's bright in here (${evt.value}) so I'm decreasing the dimmer to ${level}"
+            
+           	log.info "It's bright in here (${currentLux}) so I'm decreasing the dimmer to ${level}"
             dimmer.setLevel(level)
             return
     	}
