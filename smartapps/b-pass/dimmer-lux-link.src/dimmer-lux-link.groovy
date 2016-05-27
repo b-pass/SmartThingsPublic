@@ -66,7 +66,7 @@ def updated() {
 
 def getLuxTarget() {
 	def cal = getSunriseAndSunset()
-	if (now() < cal.sunrise.getTime() || now() >= cal.sunset.getTime())
+	if (now() < (cal.sunrise.getTime()+30*60*1000) || now() >= (cal.sunset.getTime() - 30*60*1000))
     	return nightLux
     else
     	return dayLux
