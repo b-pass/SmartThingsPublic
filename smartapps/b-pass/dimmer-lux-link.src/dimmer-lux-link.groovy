@@ -49,7 +49,6 @@ def installed() {
     
 	subscribe(luxSensor, "illuminance", luxHandler)
     subscribe(dimmer, "switch", switchHandler)
-    subscribe(dimmer, "switchLevel", dimmerHandler)
 }
 
 def updated() {
@@ -88,18 +87,24 @@ def luxHandler(evt) {
     def targetLux = getLuxTarget()
     
     if (dimmer.currentSwitch == "off" && 
-    	oldLux >= targetLux && currentLux < targetLux)
+    	oldLux >= (targetLux-luxAccuracy) && currentLux < (targetLux-luxAccuracy))
    	{
-    	if (Date.parse("yyy-MM-dd'T'HH:mm:ss.SSSZ", noOnAt).getTime() >= now)
+    	def timeCheck = noOnAt =~ /\d{2,4}-\d{1,2}-\d{1,2}.?(\d{1,2}):(\d{2}).*$/
+        def when = new Date()
+        when.clearTime()
+        when.putAt(java.util.Calendar.HOUR, Integer.parseInt(timeCheck[0][1]))
+        when.putAt(java.util.Calendar.MINUTE, Integer.parseInt(timeCheck[0][2]))
+        
+    	if (when.getTime() >= now())
         {
         	log.debug "Not turning the light on because it's after ${noOnAt}"
         }
         else
         {
             log.info "It's getting dark in here (${currentLux}) so turning the light on"
-            dimmer.setLevel(10)
+            dimmer.setLevel(15)
             dimmer.on()
-            dimmer.setLevel(10)
+            dimmer.setLevel(15)
             state.squelchUntil = now() + 60*1000
         }
         return
@@ -141,8 +146,4 @@ def luxHandler(evt) {
 
 def switchHandler(evt) {
     state.squelchUntil = now() + 60*1000
-}
-
-def dimmerHandler(evt) {
-    state.squelchUntil = now() + 120*1000
 }
