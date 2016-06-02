@@ -85,19 +85,13 @@ def luxHandler(evt) {
     	return // first run
     
     def targetLux = getLuxTarget()
-    
+        
     if (dimmer.currentSwitch == "off" && 
     	oldLux >= (targetLux-luxAccuracy) && currentLux < (targetLux-luxAccuracy))
    	{
-    	def timeCheck = noOnAt =~ /\d{2,4}-\d{1,2}-\d{1,2}.?(\d{1,2}):(\d{2}).*$/
-        def when = new Date()
-        when.clearTime()
-        when.putAt(java.util.Calendar.HOUR, Integer.parseInt(timeCheck[0][1]))
-        when.putAt(java.util.Calendar.MINUTE, Integer.parseInt(timeCheck[0][2]))
-        
-    	if (when.getTime() >= now())
+    	if (now() >= timeToday(noOnAt, location.timeZone).getTime())
         {
-        	log.debug "Not turning the light on because it's after ${noOnAt}"
+        	log.info "Not turning the light on because it's late."
         }
         else
         {
