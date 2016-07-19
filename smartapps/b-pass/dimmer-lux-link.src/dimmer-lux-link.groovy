@@ -72,17 +72,17 @@ def getLuxTarget() {
 }
 
 def luxHandler(evt) {
-    if (state.squelchUntil > now())
-    {
-    	log.debug "squlech ${state.squelchUntil} ... ${now()}"
-    	return
-    }
-    
     def oldLux = state.oldLux
     def currentLux = state.oldLux = evt.doubleValue
     
     if (oldLux == null)
     	return // first run
+    
+    if (state.squelchUntil > now())
+    {
+    	log.debug "squlech ${state.squelchUntil} ... ${now()}"
+    	return
+    }
     
     def targetLux = getLuxTarget()
         
