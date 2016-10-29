@@ -43,11 +43,12 @@ def initialize() {
 }
 
 def refresh() {
-  log.debug "Refreshing!"
-  doSubscribe
+  log.debug "Refreshing..."
+  doSubscribe()
 }
 
-def updateValueNow() {
+/*def updateValueNow() {
+  log.debug "Update Now: ${getHostAddress()}"
   sendHubCommand(new physicalgraph.device.HubAction(
       method: "GET",
       path: "/lux",
@@ -55,7 +56,7 @@ def updateValueNow() {
           Host: getHostAddress()
       ]
   ))
-}
+}*/
 
 def parse(String description) {
   // NOTE: We could tell a response from a NOTIFY by checking json vs. xml or checking status code (200 vs. null) or checking for SEQ/NT/SID header
@@ -84,7 +85,8 @@ def parse(String description) {
   if (state.sid != msg.headers?.sid)
   {
     log.debug "Expected sid ${state.sid} doesn't match supplied sid ${msg.headers?.sid}"
-    return
+    if (msg.headers?.sid)
+    	return
   }
   
   log.trace "Got value ${msg.xml} on sid ${state.sid}"
@@ -115,7 +117,7 @@ log.trace "sync ${ip}, ${port}"
 }
 
 def doSubscribe(callbackPath="") {
-    log.trace "doSubscribe($callbackPath)"
+    log.debug "doSubscribe($callbackPath) : http://${getCallBackAddress()}/notify${callbackPath}"
     
     sendHubCommand(new physicalgraph.device.HubAction(
         method: "SUBSCRIBE",
