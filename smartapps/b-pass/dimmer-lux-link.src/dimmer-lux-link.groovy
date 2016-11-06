@@ -33,6 +33,7 @@ preferences {
     }
 	section("Target levels:") {
 		input "nightLux", "decimal", default:20, required: true, title:"Night"
+        input "preDawnLux", "decimal", default:10, required: true, title:"Pre-Dawn"
 		input "dayLux", "decimal", default:40, required: true, title:"Day"
 	}
     section("Special Times") {
@@ -65,7 +66,9 @@ def updated() {
 
 def getLuxTarget() {
 	def cal = getSunriseAndSunset()
-	if (now() < (cal.sunrise.getTime()+30*60*1000) || now() >= (cal.sunset.getTime() - 30*60*1000))
+	if (now() < (cal.sunrise.getTime()+30*60*1000))
+    	return preDawnLux
+    else if (now() >= (cal.sunset.getTime() - 30*60*1000))
     	return nightLux
     else
     	return dayLux
