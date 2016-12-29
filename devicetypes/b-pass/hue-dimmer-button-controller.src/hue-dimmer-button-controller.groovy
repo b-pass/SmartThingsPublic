@@ -113,7 +113,7 @@ def configure() {
 
 	log.debug "configure"
 	String zigbeeId = swapEndianHex(device.hub.zigbeeId)
-	log.debug "Confuguring Reporting and Bindings."
+	log.debug "Configuring Reporting and Bindings."
 	def configCmds = [	
 		
 		// Bind the outgoing on/off cluster from remote to hub, so remote sends hub messages when On/Off buttons pushed
