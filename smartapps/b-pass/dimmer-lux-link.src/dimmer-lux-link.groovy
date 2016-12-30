@@ -19,14 +19,14 @@ definition(
     author: "B. Pass",
     description: "Link a dimmer and a lux/illuminance sensor.",
     category: "Convenience",
-    iconUrl: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience.png",
-    iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience@2x.png",
-    iconX3Url: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience@2x.png")
+    iconUrl: "http://cdn.device-icons.smartthings.com/Home/home30-icn.png",
+    iconX2Url: "http://cdn.device-icons.smartthings.com/Home/home30-icn@2x.png",
+    iconX3Url: "http://cdn.device-icons.smartthings.com/Home/home30-icn@2x.png")
 
 preferences {
 	section("Things") {
 		input "luxSensor", "capability.illuminanceMeasurement", title:"Light Sensor", required: true
-		input "dimmer", "capability.switchLevel", title:"Dimmer Switch", required: true
+		input "dimmer", "capability.switchLevel", title:"Dimmer Switch", required: true, multiple: true
 	}
     section("Desired accuracy:") {
     	input "luxAccuracy", "decimal", default:1.0, required: false, title:"Lux"
@@ -74,6 +74,15 @@ def getLuxTarget() {
     	return dayLux
 }
 
+def isOn() {
+	def yes = false
+	dimmer.each {
+    	if (it.currentSwitch == "on")
+        	yes = true
+    }
+    return yes
+}
+
 def luxHandler(evt) {
     def oldLux = state.oldLux
     def currentLux = state.oldLux = evt.doubleValue
@@ -88,9 +97,8 @@ def luxHandler(evt) {
     }
     
     def targetLux = getLuxTarget()
-        
-    if (dimmer.currentSwitch == "off" && 
-    	oldLux >= (targetLux-luxAccuracy) && currentLux < (targetLux-luxAccuracy))
+    
+    if (!isOn() && oldLux >= (targetLux-luxAccuracy) && currentLux < (targetLux-luxAccuracy))
    	{
     	if (now() >= timeToday(noOnAt, location.timeZone).getTime())
         {
@@ -107,9 +115,9 @@ def luxHandler(evt) {
         return
     }
     
-    if (dimmer.currentSwitch == "on")
+    if (isOn())
     {
-        def level = dimmer.currentLevel
+        def level = dimmer[0].currentLevel
     	if (currentLux < (targetLux - luxAccuracy) && level < 100)
         {
         	level += 1
