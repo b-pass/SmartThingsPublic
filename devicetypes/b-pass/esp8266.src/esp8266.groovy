@@ -33,18 +33,25 @@ def installed() {
 
 def updated() {
     log.trace "Updated with settings: ${settings}"
-    //unsubscribe()
+    try {
+    	unschedule()
+    }
+    catch (e) {
+   		log.warn "Unschedule exception: ${e}"
+    }
+    
     initialize()
 }
 
 def initialize() {
     log.trace "initialize"
     doSubscribe()
+    runEvery1Hour(doSubscribe)
 }
 
 def refresh() {
   log.debug "Refreshing..."
-  doSubscribe()
+  updated()
 }
 
 /*def updateValueNow() {
@@ -105,7 +112,7 @@ def parse(String description) {
 }
 
 def sync(ip, port) {
-log.trace "sync ${ip}, ${port}"
+    log.trace "sync ${ip}, ${port}"
 	def existingIp = getDataValue("ip")
 	def existingPort = getDataValue("port")
 	if (ip && ip != existingIp) {
@@ -131,7 +138,6 @@ def doSubscribe(callbackPath="") {
     ))
 
     log.trace "SUBSCRIBE $path"
-    runIn(3600, doSubscribe)
 }
 
 // gets the address of the hub
@@ -150,7 +156,7 @@ def getHostAddress() {
             ip = parts[0]
             port = parts[1]
         } else {
-            log.warn "Can't figure out ip and port for device: ${device.id}"
+            log.warn "Can't figure out ip and port for device: ${device?.id}"
         }
     }
 
