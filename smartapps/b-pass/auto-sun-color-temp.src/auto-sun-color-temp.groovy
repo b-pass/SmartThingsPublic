@@ -36,12 +36,19 @@ preferences {
 	}
 }
 
+def initialize() {
+	//    S M H dom m dow [y]
+	schedule("0 * * * * ?", checkTemp) // once per minute
+    subscribe(bulbs, "switch", switchHandler)
+}
+
 def installed() {
 	initialize()
 }
 
 def updated() {
 	unsubscribe()
+    unschedule()
 	initialize()
 }
 
@@ -62,8 +69,10 @@ def calcColorTemperature() {
     def sunsetTime = getSunset()
     def nowTime = now()
     //log.debug "wtf? $nowTime < $sunriseTime || $nowTime > $sunsetTime"
-    if (nowTime < sunriseTime || nowTime > sunsetTime) 
+    if (nowTime < sunriseTime || nowTime > sunsetTime) {
+    	log.debug "It's dark, so color temp should be ${minTemp}"
     	return minTemp
+    }
     
     def dayLength = sunsetTime - sunriseTime
 
@@ -88,22 +97,20 @@ def calcColorTemperature() {
     double b = (d1-a1*a)/b1
     double c = y1-a*x1**2-b*x1
     double colorTemperature = a*nowTime**2+b*nowTime+c
-    double mirekCT = Math.round(1000000 / colorTemperature) as Integer //Round to mireks because thats what Hue uses
     def finalCT = Math.round(colorTemperature) as Integer
-    log.debug "Color Temperature is ${finalCT} (${mirekCT} mirek)"
+    log.debug "Color Temperature should be ${finalCT}"
     return finalCT
 }
 
 def checkTemp() {
 	def ct = calcColorTemperature()
 	bulbs.each {
-    	//if (it.currentSwitch != "off")
-        if (it.currentColorTemperature != ct)
+        if (it.currentColorTemperature != ct && it.currentSwitch == "on")
         	it.setColorTemperature(ct)
     }
-	runIn(30, checkTemp)
 }
 
-def initialize() {
-	checkTemp()
+def switchHandler(evt) {
+	if (evt.value == "on")
+    	evt.device?.setColorTemperature(calcColorTemperature())
 }
