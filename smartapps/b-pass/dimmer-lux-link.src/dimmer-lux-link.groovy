@@ -121,8 +121,8 @@ def luxHandler(evt) {
     	if (currentLux < (targetLux - luxAccuracy) && level < 100)
         {
         	level += 1
-            if (currentLux < (targetLux - luxAccuracy*2) && level < 100)
-            	level += 1
+            if (currentLux < (targetLux - luxAccuracy*2) && level < 95)
+            	level += 4
             log.info "It's getting dark in here (${currentLux}) so I'm increasing the dimmer to ${level}"
             dimmer.setLevel(level)
             return
@@ -139,8 +139,8 @@ def luxHandler(evt) {
             }
             
             level -= 1
-            if (currentLux > (targetLux + luxAccuracy*2) && level > 10)
-            	level -= 1
+            if (currentLux > (targetLux + luxAccuracy*2) && level > 15)
+            	level -= 4
             
            	log.info "It's bright in here (${currentLux}) so I'm decreasing the dimmer to ${level}"
             dimmer.setLevel(level)
@@ -150,5 +150,8 @@ def luxHandler(evt) {
 }
 
 def switchHandler(evt) {
-    state.squelchUntil = now() + 60*1000
+    if (evt.value == "off")
+    	state.squelchUntil = now() + 120*1000
+    else
+    	state.squelchUntil = now() + 15*1000
 }
