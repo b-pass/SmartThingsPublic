@@ -27,6 +27,7 @@ preferences {
 	section("Things") {
 		input "luxSensor", "capability.illuminanceMeasurement", title:"Light Sensor", required: true
 		input "dimmer", "capability.switchLevel", title:"Dimmer Switch", required: true, multiple: true
+		input "ctrlSwitch", "capability.switch", title:"On/Off Switch", required: false
 	}
     section("Desired accuracy:") {
     	input "luxAccuracy", "decimal", default:1.0, required: false, title:"Lux"
@@ -50,6 +51,8 @@ def installed() {
     
 	subscribe(luxSensor, "illuminance", luxHandler)
     subscribe(dimmer, "switch", switchHandler)
+    if (ctrlSwitch)
+    	subscribe(ctrlSwitch, "switch", ctrlSwitchHandler)
 }
 
 def updated() {
@@ -60,7 +63,9 @@ def updated() {
     
 	subscribe(luxSensor, "illuminance", luxHandler)
     subscribe(dimmer, "switch", switchHandler)
-    subscribe(dimmer, "switchLevel", dimmerHandler)
+    if (ctrlSwitch)
+    	subscribe(ctrlSwitch, "switch", ctrlSwitchHandler)
+    
 	log.debug "updated"
 }
 
@@ -150,8 +155,30 @@ def luxHandler(evt) {
 }
 
 def switchHandler(evt) {
-    if (evt.value == "off")
-    	state.squelchUntil = now() + 120*1000
+	if (evt.value.startsWith("turning"))
+    	return
+    
+    log.trace "Switch ${evt.device} is now ${evt.value}"
+    
+    if (evt.value != "on")
+    {
+    	state.squelchUntil = now() + 90*1000
+    }
     else
+    {
     	state.squelchUntil = now() + 15*1000
+        evt.device?.setLevel(15)
+    }
+}
+
+def ctrlSwitchHandler(evt) {
+	if (evt.value?.startsWith("turning"))
+    	return
+    
+    log.trace "Control switch ${evt.device} is now ${evt.value}"
+    
+    if (evt.value != "on")
+    	dimmer.off()
+    else
+    	dimmer.on()
 }
