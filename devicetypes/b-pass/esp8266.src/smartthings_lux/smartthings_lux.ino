@@ -1,13 +1,31 @@
-#include <Adafruit_TSL2561_U.h> include <ESP8266WiFi.h> include <ESP8266WebServer.h> include <ESP8266HTTPClient.h> include <ESP8266SSDP.h> define WEB_PORT 80
-Adafruit_TSL2561_Unified luxSensor(TSL2561_ADDR_FLOAT); ESP8266WebServer webServer(WEB_PORT);
+#include <Adafruit_TSL2561_U.h>
+
+#include <ESP8266WiFi.h>
+#include <ESP8266WebServer.h>
+#include <ESP8266HTTPClient.h>
+#include <ESP8266SSDP.h>
+
+#define WEB_PORT 80
+
+Adafruit_TSL2561_Unified luxSensor(TSL2561_ADDR_FLOAT);
+ESP8266WebServer webServer(WEB_PORT);
+
 #define NUM_IMPORTANT_HEADERS 3
 char const *importantHeaders[NUM_IMPORTANT_HEADERS] = {
   "CALLBACK",
   "TIMEOUT",
   "SID"
 };
-void ReqStatus(); void ReqLux(); void ReqDebug(); void ReqSubscribe(); void Notify(int sidx); struct subscription_t {
-  subscription_t()
+
+void ReqStatus();
+void ReqLux();
+void ReqDebug();
+void ReqSubscribe();
+void Notify(int sidx);
+
+struct subscription_t
+{
+  subscription_t() 
   : expire_time(0), seq(0)
   {}
   
@@ -16,12 +34,23 @@ void ReqStatus(); void ReqLux(); void ReqDebug(); void ReqSubscribe(); void Noti
   uint64_t expire_time;
   uint32_t seq;
 };
+
 #define MAX_SUBSCRIPTIONS 10
-subscription_t subscriptions[MAX_SUBSCRIPTIONS]; int num_subscriptions = 0;
-#define SAMPLE_INTERVAL 2 define SAMPLES_PER_MIN (60/SAMPLE_INTERVAL) define ROLLING_HISTORY 10 // must be <= SAMPLES_PER_MIN define SQUELCH_INTERVAL (ROLLING_HISTORY/2) define 
-#MULTI_MINUTES 10
-uint64_t lastRead = 0; int omhi = 0, mmhi = 0, squelch = 0; float currentLuxValue = 0, lastNotify = 0; float one_minute_history[SAMPLES_PER_MIN] = {0,}; float 
-multi_minute_history[MULTI_MINUTES] = {0,}; void setup(void) {
+subscription_t subscriptions[MAX_SUBSCRIPTIONS];
+int num_subscriptions = 0;
+
+#define SAMPLE_INTERVAL 2
+#define SAMPLES_PER_MIN (60/SAMPLE_INTERVAL)
+#define ROLLING_HISTORY 10 // must be <= SAMPLES_PER_MIN
+#define SQUELCH_INTERVAL (ROLLING_HISTORY/2)
+#define MULTI_MINUTES 10
+uint64_t lastRead = 0;
+int omhi = 0, mmhi = 0, squelch = 0;
+float currentLuxValue = 0, lastNotify = 0;
+float one_minute_history[SAMPLES_PER_MIN] = {0,};
+float multi_minute_history[MULTI_MINUTES] = {0,};
+
+void setup(void) {
   pinMode(0, OUTPUT); // red LED
   digitalWrite(0, LOW); // red LED on
   Serial.begin(115200);
@@ -39,7 +68,7 @@ multi_minute_history[MULTI_MINUTES] = {0,}; void setup(void) {
     delay(500);
     Serial.print(".");
   }
-  Serial.print(F(" Connected, IP: "));
+  Serial.print(F("  Connected, IP: "));
   Serial.println(WiFi.localIP());
   
   int seed = 0;
@@ -70,9 +99,11 @@ multi_minute_history[MULTI_MINUTES] = {0,}; void setup(void) {
   
   for (int i = 0; i < MAX_SUBSCRIPTIONS; ++i)
     subscriptions[i].expire_time = 0;
+
   Serial.println(F("Setup finished"));
   digitalWrite(0, HIGH); // red LED off
 }
+
 void loop(void) {
   delay(1);
   
@@ -119,7 +150,9 @@ void loop(void) {
     }
   }
 }
-void ReqStatus() {
+
+void ReqStatus()
+{
   Serial.println(F("/status requested"));
   
   String doc = F("{ \"version\":1");
@@ -128,7 +161,9 @@ void ReqStatus() {
   doc += F(" }\n");
   webServer.send(200, "application/json", doc);
 }
-void ReqLux() {
+
+void ReqLux()
+{
   Serial.println(F("/lux requested"));
   
   String doc;
@@ -152,7 +187,9 @@ void ReqLux() {
   
   webServer.send(200, "application/json", doc);
 }
-void ReqDebug() {
+
+void ReqDebug()
+{
   Serial.println(F("/debug requested"));
   
   String doc;
@@ -188,7 +225,9 @@ void ReqDebug() {
   
   webServer.send(200, "text/plain", doc);
 }
-String generateUUID() {
+
+String generateUUID()
+{
   char value[37] = "00000000-0000-0000-0000-000000000000";
   
   for (int i = 0; i < 36; ++i)
@@ -205,15 +244,17 @@ String generateUUID() {
   
   return String(value);
 }
-void ReqSubscribe() {
+
+void ReqSubscribe()
+{
   Serial.println(F("/subscribe requested"));
   
-  /* re-SUBSCRBE would have a SID and no Callback, but so would UNSUBSCRIBE.
-  TIMEOUT is optional on re-SUBSCRIBE. Therefore a request with no TIMEOUT and
-  a valid SID could be either a UNSUBSCRIBE or a re-SUBSCRIBE and we can't
+  /* re-SUBSCRBE would have a SID and no Callback, but so would UNSUBSCRIBE. 
+  TIMEOUT is optional on re-SUBSCRIBE. Therefore a request with no TIMEOUT and 
+  a valid SID could be either a UNSUBSCRIBE or a re-SUBSCRIBE and we can't 
   know which.  So we assume its a re-SUBSCRIBE.
   
-  We should obvious be able to tell from the method, but ESP8266's WebServer
+  We should obvious be able to tell from the method, but ESP8266's WebServer 
   doesn't support that.*/
   if (!webServer.hasHeader("TIMEOUT"))
   {
@@ -289,7 +330,9 @@ void ReqSubscribe() {
     Notify(sidx);
   }
 }
-void Notify(int sidx) {
+
+void Notify(int sidx)
+{
   String xml = F("<?xml version=\"1.0\"?>\n"
                  "<e:propertyset xmlns:e=\"urn:schemas-upnp-org:event-1-0\">\n"
                  "<e:property>\n"
@@ -336,3 +379,5 @@ void Notify(int sidx) {
   
   ++subscriptions[sidx].seq;
 }
+
+
