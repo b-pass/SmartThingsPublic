@@ -48,9 +48,10 @@ def installed() {
     
     state.squelchUntil = 0
     state.oldLux = null
+    state.shouldBeOn = false
     
 	subscribe(luxSensor, "illuminance", luxHandler)
-    subscribe(dimmer, "switch", switchHandler)
+    subscribe(dimmer, "switch", dimmerHandler)
     if (ctrlSwitch)
     	subscribe(ctrlSwitch, "switch", ctrlSwitchHandler)
 }
@@ -60,9 +61,10 @@ def updated() {
     
     state.squelchUntil = 0
     state.oldLux = null
+    state.shouldBeOn = false
     
 	subscribe(luxSensor, "illuminance", luxHandler)
-    subscribe(dimmer, "switch", switchHandler)
+    subscribe(dimmer, "switch", dimmerHandler)
     if (ctrlSwitch)
     	subscribe(ctrlSwitch, "switch", ctrlSwitchHandler)
     
@@ -79,15 +81,6 @@ def getLuxTarget() {
     	return dayLux
 }
 
-def isOn() {
-	def yes = false
-	dimmer.each {
-    	if (it.currentSwitch == "on")
-        	yes = true
-    }
-    return yes
-}
-
 def luxHandler(evt) {
     def oldLux = state.oldLux
     def currentLux = state.oldLux = evt.doubleValue
@@ -97,13 +90,13 @@ def luxHandler(evt) {
     
     if (state.squelchUntil > now())
     {
-    	log.debug "squlech ${state.squelchUntil} ... ${now()}"
+    	log.debug "Squleched lux change ${currentLux} (for ${state.squelchUntil - now()}ms more)"
     	return
     }
     
     def targetLux = getLuxTarget()
     
-    if (!isOn() && oldLux >= (targetLux-luxAccuracy) && currentLux < (targetLux-luxAccuracy))
+    if (!state.shouldBeOn && oldLux >= (targetLux-luxAccuracy) && currentLux < (targetLux-luxAccuracy))
    	{
     	if (now() >= timeToday(noOnAt, location.timeZone).getTime())
         {
@@ -112,7 +105,9 @@ def luxHandler(evt) {
         else
         {
             log.info "It's getting dark in here (${currentLux}) so turning the light on"
+            state.shouldBeOn = true
             dimmer.setLevel(15)
+            ctrlSwitch?.on()
             dimmer.on()
             dimmer.setLevel(15)
             state.squelchUntil = now() + 60*1000
@@ -120,7 +115,7 @@ def luxHandler(evt) {
         return
     }
     
-    if (isOn())
+    if (state.shouldBeOn)
     {
         def level = dimmer[0].currentLevel
     	if (currentLux < (targetLux - luxAccuracy) && level < 100)
@@ -138,6 +133,8 @@ def luxHandler(evt) {
         	if (level <= 10)
             {
             	log.info "It's plenty bright in here (${currentLux}) so I'm turning the light off"
+                state.shouldBeOn = false
+                ctrlSwitch?.off()
                 dimmer.off()
         		state.squelchUntil = now() + 90*1000
                 return
@@ -154,20 +151,26 @@ def luxHandler(evt) {
     }
 }
 
-def switchHandler(evt) {
+def dimmerHandler(evt) {
 	if (evt.value.startsWith("turning"))
     	return
     
-    log.trace "Switch ${evt.device} is now ${evt.value}"
-    
+    log.trace "Dimmer ${evt.device} changed itself to state ${evt.value}"
     if (evt.value != "on")
     {
-    	state.squelchUntil = now() + 90*1000
+    	if (state.shouldBeOn)
+        {
+          evt.device?.setLevel(15)
+          dimmer.on()
+          evt.device?.setLevel(15)
+        }
     }
     else
     {
-    	state.squelchUntil = now() + 15*1000
-        evt.device?.setLevel(15)
+    	if (!state.shouldBeOn)
+        {
+        	dimmer.off()
+        }
     }
 }
 
@@ -178,7 +181,19 @@ def ctrlSwitchHandler(evt) {
     log.trace "Control switch ${evt.device} is now ${evt.value}"
     
     if (evt.value != "on")
+    {
+    	log.debug "Turning dimmer(s) off"
+        state.shouldBeOn = false
+    	state.squelchUntil = now() + 90*1000
     	dimmer.off()
+    }
     else
+    {
+    	log.debug "Turning dimmer(s) on"
+        state.shouldBeOn = true
+    	state.squelchUntil = now() + 15*1000
+        dimmer.setLevel(15)
     	dimmer.on()
+        dimmer.setLevel(15)
+    }
 }

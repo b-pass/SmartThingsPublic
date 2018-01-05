@@ -70,7 +70,7 @@ def calcColorTemperature() {
     def nowTime = now()
     //log.debug "wtf? $nowTime < $sunriseTime || $nowTime > $sunsetTime"
     if (nowTime < sunriseTime || nowTime > sunsetTime) {
-    	log.debug "It's dark, so color temp should be ${minTemp}"
+    	log.trace "It's dark, so color temp should be ${minTemp}"
     	return minTemp
     }
     
@@ -103,9 +103,13 @@ def calcColorTemperature() {
 }
 
 def checkTemp() {
+    def sunriseTime = getSunrise()
+    def sunsetTime = getSunset()
+    def nowTime = now()
+   	
 	def ct = calcColorTemperature()
 	bulbs.each {
-        if (it.currentColorTemperature != ct && it.currentSwitch == "on")
+        if (Math.abs(it.currentColorTemperature - ct) >= 5 && it.currentSwitch == "on")
         	it.setColorTemperature(ct)
     }
 }
