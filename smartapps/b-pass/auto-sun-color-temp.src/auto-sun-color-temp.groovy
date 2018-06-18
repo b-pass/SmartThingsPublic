@@ -38,7 +38,8 @@ preferences {
 
 def initialize() {
 	//    S M H dom m dow [y]
-	schedule("0 * * * * ?", checkTemp) // once per minute
+	//schedule("0 * * * * ?", checkTemp) // once per minute
+    runEvery1Minute(checkTemp)
     subscribe(bulbs, "switch", switchHandler)
 }
 

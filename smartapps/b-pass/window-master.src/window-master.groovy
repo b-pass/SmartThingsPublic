@@ -1,7 +1,7 @@
 /**
- *  Dimmer Lux Link
+ *  Window Master
  *
- *  Copyright 2016 B. Pass
+ *  Copyright 2018 Bryan Pass
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
@@ -14,20 +14,22 @@
  *
  */
 definition(
-    name: "Dimmer Lux Link",
+    name: "Window Master",
     namespace: "b-pass",
-    author: "B. Pass",
-    description: "Link a dimmer and a lux/illuminance sensor.",
-    category: "Convenience",
-    iconUrl: "http://cdn.device-icons.smartthings.com/Home/home30-icn.png",
-    iconX2Url: "http://cdn.device-icons.smartthings.com/Home/home30-icn@2x.png",
-    iconX3Url: "http://cdn.device-icons.smartthings.com/Home/home30-icn@2x.png")
+    author: "Bryan Pass",
+    description: "Masterfully coordinate window actuators and thermostats.",
+    category: "Green Living",
+    iconUrl: "http://cdn.device-icons.smartthings.com/Home/home9-icn.png",
+    iconX2Url: "http://cdn.device-icons.smartthings.com/Home/home9-icn@2x.png",
+    iconX3Url: "http://cdn.device-icons.smartthings.com/Home/home9-icn@3x.png",
+)
 
 preferences {
-	section("Things") {
-		input "luxSensor", "capability.illuminanceMeasurement", title:"Light Sensor", required: true
-		input "dimmer", "capability.switchLevel", title:"Dimmer Switch", required: true, multiple: true
-		input "ctrlSwitch", "capability.switch", title:"On/Off Switch", required: false
+	/*section("Things") {
+		input "windows", "capability.doorControl", title:"Windows", required: true, multiple: true
+		input "thermostat", "capability.thermostat", title:"Thermostat", required: false
+		input "outTemp", "capability.temperatureMeasurement", title:"Outside Temperature", required: false
+        input "outRelHum", "capability.relativeHumidityMeasurement", title:"Outside Humidity", required: false
 	}
     section("Desired accuracy:") {
     	input "luxAccuracy", "decimal", default:1.0, required: false, title:"Lux"
@@ -40,37 +42,43 @@ preferences {
     section("Special Times") {
     	input "noOnAt", "time", required: false, title:"Stop turning on"
     	//input "forceOffTime", "time", required: false, title:"Force off"
-    }
+    }*/
 }
 
 def installed() {
 	log.debug "installed"
     
-    state.squelchUntil = 0
-    state.oldLux = null
-    state.shouldBeOn = false
+    state.oldOutTemp = 0
+    state.shouldBeOpen = false
     
-	subscribe(luxSensor, "illuminance", luxHandler)
-    subscribe(dimmer, "switch", dimmerHandler)
-    if (ctrlSwitch)
-    	subscribe(ctrlSwitch, "switch", ctrlSwitchHandler)
+    if (outTemp)
+      	subscribe(outTemp, "temperature", outTempHandler)
+    
+    checkWebWeather()
+    runEvery15Minutes(checkWebWeather)
 }
 
 def updated() {
-	unsubscribe()
-    
-    state.squelchUntil = 0
-    state.oldLux = null
-    state.shouldBeOn = false
-    
-	subscribe(luxSensor, "illuminance", luxHandler)
-    subscribe(dimmer, "switch", dimmerHandler)
-    if (ctrlSwitch)
-    	subscribe(ctrlSwitch, "switch", ctrlSwitchHandler)
-    
 	log.debug "updated"
+	unsubscribe()
+    installed()
 }
 
+def checkWebWeather() {
+	def nowWx = getWeatherFeature("conditions")?.current_observation
+	log.trace nowWx
+    
+    def weatherObsStr = nowWx?.weather
+    if (weatherObsStr =~ /(?:rain|snow|mist)/)
+    {
+    	log.warn "DANGER DANGER ${weatherObsStr}"
+    	// emergency close
+    }
+    
+    log.trace "temp=${nowWx?.temp_f}, feelslike=${nowWx?.feelslike_f}, rh=${nowWx?.relative_humidity}"
+}
+
+/*
 def getLuxTarget() {
 	def cal = getSunriseAndSunset()
 	if (now() < (cal.sunrise.getTime()+30*60*1000))
@@ -224,3 +232,4 @@ def ctrlSwitchHandler(evt) {
         dimmer.setLevel(15)
     }
 }
+*/
