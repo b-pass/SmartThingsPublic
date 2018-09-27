@@ -131,11 +131,12 @@ def luxHandler(evt) {
         {
             log.info "It's getting dark in here (${currentLux}) so turning the light on"
             state.shouldBeOn = true
+            state.squelchUntil = now() + 15*1000
             dimmer.setLevel(15)
             ctrlSwitch?.on()
             dimmer.on()
             dimmer.setLevel(15)
-            state.squelchUntil = now() + 60*1000
+            runIn(60, checkLevels)
         }
         return
     }
@@ -161,7 +162,7 @@ def luxHandler(evt) {
                 state.shouldBeOn = false
                 ctrlSwitch?.off()
                 dimmer.off()
-        		state.squelchUntil = now() + 90*1000
+        		state.squelchUntil = now() + 60*1000
                 return
             }
             
@@ -197,6 +198,7 @@ def dimmerHandler(evt) {
     	if (!state.shouldBeOn)
         {
         	dimmer.off()
+    		state.squelchUntil = now() + 10*1000
         }
     }
 }
@@ -211,16 +213,22 @@ def ctrlSwitchHandler(evt) {
     {
     	log.debug "Turning dimmer(s) off"
         state.shouldBeOn = false
-    	state.squelchUntil = now() + 90*1000
+    	state.squelchUntil = now() + 60*1000
     	dimmer.off()
     }
     else
     {
     	log.debug "Turning dimmer(s) on"
         state.shouldBeOn = true
-    	state.squelchUntil = now() + 15*1000
+    	state.squelchUntil = now() + 5*1000
         dimmer.setLevel(15)
     	dimmer.on()
         dimmer.setLevel(15)
+        runIn(15, checkLevels)
     }
+}
+
+def checkLevels() {
+  if (luxSensor && luxSensor.currentValue)
+    luxHandler([doubleValue: luxsensor.currentValue])
 }
