@@ -4,11 +4,23 @@
 #include <ESP8266WebServer.h>
 #include <ESP8266HTTPClient.h>
 #include <ESP8266SSDP.h>
+#include <PubSubClient.h>
+
+#define MQTT_HOST "a.b.c.d"
+#define MQTT_USER "e"
+#define MQTT_PASS "f"
+#define WIFI_SSID "g"
+#define WIFI_PASS "h"
 
 #define WEB_PORT 80
+#define MQTT_PORT 1883
 
 Adafruit_TSL2561_Unified luxSensor(TSL2561_ADDR_FLOAT);
 ESP8266WebServer webServer(WEB_PORT);
+WiFiClient wifiClient;
+PubSubClient mqtt(wifiClient);
+
+char mqttTopic[64];
 
 #define NUM_IMPORTANT_HEADERS 3
 char const *importantHeaders[NUM_IMPORTANT_HEADERS] = {
@@ -43,8 +55,9 @@ int num_subscriptions = 0;
 #define SAMPLES_PER_MIN (60/SAMPLE_INTERVAL)
 #define ROLLING_HISTORY 10 // must be <= SAMPLES_PER_MIN
 #define SQUELCH_INTERVAL (ROLLING_HISTORY/2)
+#define NOTIFY_MAX_INTERVAL 300
 #define MULTI_MINUTES 10
-uint64_t lastRead = 0;
+uint64_t lastRead = 0, lastNotifyTime = 0;
 int omhi = 0, mmhi = 0, squelch = 0;
 float currentLuxValue = 0, lastNotify = 0;
 float one_minute_history[SAMPLES_PER_MIN] = {0,};
@@ -63,7 +76,7 @@ void setup(void) {
   luxSensor.setPowerSave(false);
   luxSensor.begin();
   
-  WiFi.begin("SSID", "PASSWORD");
+  WiFi.begin(WIFI_SSID, WIFI_PASS);
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
@@ -96,6 +109,9 @@ void setup(void) {
   webServer.on("/subscribe", &ReqSubscribe);
   webServer.collectHeaders(importantHeaders, NUM_IMPORTANT_HEADERS);
   webServer.begin();
+
+  mqtt.setServer(MQTT_HOST, MQTT_PORT);
+  snprintf(mqttTopic, sizeof(mqttTopic), "sensors/lux/esp8266/%06X", ESP.getChipId());
   
   for (int i = 0; i < MAX_SUBSCRIPTIONS; ++i)
     subscriptions[i].expire_time = 0;
@@ -108,6 +124,18 @@ void loop(void) {
   delay(1);
   
   webServer.handleClient();
+
+  if (!mqtt.loop())
+  {
+    Serial.print("Attempting MQTT connection...");
+    if (mqtt.connect(WiFi.macAddress().c_str(), MQTT_USER, MQTT_PASS)) {
+      Serial.println("connected");
+    } else {
+      Serial.print("failed, rc=");
+      Serial.println(mqtt.state());
+      delay(500);
+    }
+  }
   
   uint64_t now = millis();
   if (lastRead + SAMPLE_INTERVAL*1000 <= now)
@@ -137,7 +165,9 @@ void loop(void) {
     currentLuxValue /= ROLLING_HISTORY;
     
     ++squelch;
-    if (squelch >= SQUELCH_INTERVAL && int(currentLuxValue+0.5) != int(lastNotify + 0.5))
+    if ((squelch >= SQUELCH_INTERVAL && int(currentLuxValue+0.5) != int(lastNotify + 0.5)) || 
+         lastNotifyTime + NOTIFY_MAX_INTERVAL*1000 < now || 
+         lastNotifyTime > now)
     {
       Serial.println(F("Lux changed enough to notify someone"));
       lastNotify = currentLuxValue;
@@ -147,6 +177,12 @@ void loop(void) {
         if (subscriptions[sidx].expire_time > now)
           Notify(sidx);
       }
+
+      char buf[16];
+      snprintf(buf, sizeof(buf), "%.02f", currentLuxValue);
+      mqtt.publish(mqttTopic, buf);
+
+      lastNotifyTime = now;
     }
   }
 }
@@ -254,7 +290,7 @@ void ReqSubscribe()
   a valid SID could be either a UNSUBSCRIBE or a re-SUBSCRIBE and we can't 
   know which.  So we assume its a re-SUBSCRIBE.
   
-  We should obvious be able to tell from the method, but ESP8266's WebServer 
+  We should obviously be able to tell from the method, but ESP8266's WebServer 
   doesn't support that.*/
   if (!webServer.hasHeader("TIMEOUT"))
   {
@@ -262,46 +298,33 @@ void ReqSubscribe()
     return;
   }
   
-  int sidx = -1;
-  bool isNew;
+  String oldSid;
   if (webServer.hasHeader("SID"))
+    oldSid = webServer.header("SID").substring(5); // prefixed with "uuid:"
+
+  uint64_t now = millis();
+  bool isNew = true;
+  int sidx = -1, old = -1, avail = -1, smallest = 0;
+  for (int i = 0; i < MAX_SUBSCRIPTIONS; ++i)
   {
-    String sid = webServer.header("SID").substring(5); // prefixed with "uuid:"
-    for (int i = 0; i < MAX_SUBSCRIPTIONS; ++i)
-    {
-      if (subscriptions[i].sid == sid && subscriptions[i].expire_time < millis())
-      {
-        sidx = i;
-        break;
-      }
-    }
-    
-    if (sidx < 0)
-    {
-      webServer.send(412, "text/plain", F("The SID you sent cannot be found"));
-      return;
-    }
-    isNew = false;
+    if (subscriptions[i].expire_time > now && subscriptions[i].sid == oldSid)
+      old = i;
+    if (subscriptions[i].expire_time <= now)
+      avail = i;
+    if (subscriptions[i].expire_time < subscriptions[smallest].expire_time)
+      smallest = i;
+  }
+  
+  if (old >= 0 && oldSid.length() > 0)
+  {
+    sidx = old;
+	  isNew = false;
   }
   else
   {
-    for (int i = 0; i < MAX_SUBSCRIPTIONS; ++i)
-    {
-      if (subscriptions[i].expire_time < millis())
-      {
-        sidx = i;
-        break;
-      }
-    }
-    
-    if (sidx < 0)
-    {
-      webServer.send(503, "text/plain", F("Server too busy"));
-      return;
-    }
-    
-    subscriptions[sidx].sid = generateUUID();
-    isNew = true;
+    sidx = avail >= 0 ? avail : smallest;
+	  isNew = true;
+    subscriptions[sidx].sid = oldSid.length() > 0 ? oldSid : generateUUID();
   }
   
   subscriptions[sidx].callback = webServer.header("CALLBACK");
@@ -379,4 +402,3 @@ void Notify(int sidx)
   
   ++subscriptions[sidx].seq;
 }
-
