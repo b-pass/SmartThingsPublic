@@ -39,6 +39,7 @@ preferences {
 	page(name: "completionPage")
 	page(name: "numbersPage")
 	page(name: "controllerExplanationPage")
+	page(name: "unsupportedDevicesPage")
 }
 
 def rootPage() {
@@ -47,6 +48,9 @@ def rootPage() {
 		section("What to dim") {
 			input(name: "dimmers", type: "capability.switchLevel", title: "Dimmers", description: null, multiple: true, required: true, submitOnChange: true)
 			if (dimmers) {
+				if (dimmersContainUnsupportedDevices()) {
+					href(name: "toUnsupportedDevicesPage", page: "unsupportedDevicesPage", title: "Some of your selected dimmers don't seem to be supported", description: "Tap here to fix it", required: true)
+				}
 				href(name: "toNumbersPage", page: "numbersPage", title: "Duration & Direction", description: numbersPageHrefDescription(), state: "complete")
 			}
 		}
@@ -67,6 +71,67 @@ def rootPage() {
 				// TODO: fancy label
 				label(title: "Label This SmartApp", required: false, defaultValue: "", description: "Highly recommended", submitOnChange: true)
 			}
+		}
+	}
+}
+
+def unsupportedDevicesPage() {
+
+	def unsupportedDimmers = dimmers.findAll { !hasSetLevelCommand(it) }
+
+	dynamicPage(name: "unsupportedDevicesPage") {
+		if (unsupportedDimmers) {
+			section("These devices do not support the setLevel command") {
+				unsupportedDimmers.each {
+					paragraph deviceLabel(it)
+				}
+			}
+			section {
+				input(name: "dimmers", type: "capability.sensor", title: "Please remove the above devices from this list.", submitOnChange: true, multiple: true)
+			}
+			section {
+				paragraph "If you think there is a mistake here, please contact support."
+			}
+		} else {
+			section {
+				paragraph "You're all set. You can hit the back button, now. Thanks for cleaning up your settings :)"
+			}
+		}
+	}
+}
+
+def controllerExplanationPage() {
+	dynamicPage(name: "controllerExplanationPage", title: "How To Control Gentle Wake Up") {
+
+		section("With other SmartApps", hideable: true, hidden: false) {
+			paragraph "When this SmartApp is installed, it will create a controller device which you can use in other SmartApps for even more customizable automation!"
+			paragraph "The controller acts like a switch so any SmartApp that can control a switch can control Gentle Wake Up, too!"
+			paragraph "Routines and 'Smart Lighting' are great ways to automate Gentle Wake Up."
+		}
+
+		section("More about the controller", hideable: true, hidden: true) {
+			paragraph "You can find the controller with your other 'Things'. It will look like this."
+			image "http://f.cl.ly/items/2O0v0h41301U14042z3i/GentleWakeUpController-tile-stopped.png"
+			paragraph "You can start and stop Gentle Wake up by tapping the control on the right."
+			image "http://f.cl.ly/items/3W323J3M1b3K0k0V3X3a/GentleWakeUpController-tile-running.png"
+			paragraph "If you look at the device details screen, you will find even more information about Gentle Wake Up and more fine grain controls."
+			image "http://f.cl.ly/items/291s3z2I2Q0r2q0x171H/GentleWakeUpController-richTile-stopped.png"
+			paragraph "The slider allows you to jump to any point in the dimming process. Think of it as a percentage. If Gentle Wake Up is set to dim down as you fall asleep, but your book is just too good to put down; simply drag the slider to the left and Gentle Wake Up will give you more time to finish your chapter and drift off to sleep."
+			image "http://f.cl.ly/items/0F0N2G0S3v1q0L0R3J3Y/GentleWakeUpController-richTile-running.png"
+			paragraph "In the lower left, you will see the amount of time remaining in the dimming cycle. It does not count down evenly. Instead, it will update whenever the slider is updated; typically every 6-18 seconds depending on the duration of your dimming cycle."
+			paragraph "Of course, you may also tap the middle to start or stop the dimming cycle at any time."
+		}
+
+		section("Starting and stopping the SmartApp itself", hideable: true, hidden: true) {
+			paragraph "Tap the 'play' button on the SmartApp to start or stop dimming."
+			image "http://f.cl.ly/items/0R2u1Z2H30393z2I2V3S/GentleWakeUp-appTouch2.png"
+		}
+
+		section("Turning off devices while dimming", hideable: true, hidden: true) {
+			paragraph "It's best to use other Devices and SmartApps for triggering the Controller device. However, that isn't always an option."
+			paragraph "If you turn off a switch that is being dimmed, it will either continue to dim, stop dimming, or jump to the end of the dimming cycle depending on your settings."
+			paragraph "Unfortunately, some switches take a little time to turn off and may not finish turning off before Gentle Wake Up sets its dim level again. You may need to try a few times to get it to stop."
+			paragraph "That's why it's best to use devices that aren't currently dimming. Remember that you can use other SmartApps to toggle the controller. :)"
 		}
 	}
 }
@@ -208,7 +273,7 @@ def completionPage() {
 		}
 
 		section("Notifications") {
-			input("recipients", "contact", title: "Send notifications to") {
+			input("recipients", "contact", title: "Send notifications to", required: false) {
 				input(name: "completionPhoneNumber", type: "phone", title: "Text This Number", description: "Phone number", required: false)
 				input(name: "completionPush", type: "bool", title: "Send A Push Notification", description: "Phone number", required: false)
 			}
@@ -425,17 +490,23 @@ def sendStopEvent(source) {
 		eventData.value += "cancelled"
 	}
 
+	// send 100% completion event
+	sendTimeRemainingEvent(100)
+
+	// send a non-displayed 0% completion to reset tiles
+	sendTimeRemainingEvent(0, false)
+
+	// send sessionStatus event last so the event feed is ordered properly
 	sendControllerEvent(eventData)
-	sendTimeRemainingEvent(0)
 }
 
-def sendTimeRemainingEvent(percentComplete) {
+def sendTimeRemainingEvent(percentComplete, displayed = true) {
 	log.trace "sendTimeRemainingEvent(${percentComplete})"
 
 	def percentCompleteEventData = [
 			name: "percentComplete",
 			value: percentComplete as int,
-			displayed: true,
+			displayed: displayed,
 			isStateChange: true
 	]
 	sendControllerEvent(percentCompleteEventData)
@@ -445,7 +516,7 @@ def sendTimeRemainingEvent(percentComplete) {
 	def timeRemainingEventData = [
 			name: "timeRemaining",
 			value: displayableTime(timeRemaining),
-			displayed: true,
+			displayed: displayed,
 			isStateChange: true
 	]
 	sendControllerEvent(timeRemainingEventData)
@@ -528,14 +599,16 @@ def updateDimmers(percentComplete) {
 		} else {
 
 			def shouldChangeColors = (colorize && colorize != "false")
-			def canChangeColors = hasSetColorCommand(dimmer)
 
-			log.debug "Setting ${deviceLabel(dimmer)} to ${nextLevel}"
-
-			if (shouldChangeColors && canChangeColors) {
-				dimmer.setColor([hue: getHue(dimmer, nextLevel), saturation: 100, level: nextLevel])
-			} else {
+			if (shouldChangeColors && hasSetColorCommand(dimmer)) {
+				def hue = getHue(dimmer, nextLevel)
+				log.debug "Setting ${deviceLabel(dimmer)} level to ${nextLevel} and hue to ${hue}"
+				dimmer.setColor([hue: hue, saturation: 100, level: nextLevel])
+			} else if (hasSetLevelCommand(dimmer)) {
+				log.debug "Setting ${deviceLabel(dimmer)} level to ${nextLevel}"
 				dimmer.setLevel(nextLevel)
+			} else {
+				log.warn "${deviceLabel(dimmer)} does not have setColor or setLevel commands."
 			}
 
 		}
@@ -577,8 +650,6 @@ private completion() {
 	handleCompletionMessaging()
 
 	handleCompletionModesAndPhrases()
-
-	sendTimeRemainingEvent(100)
 }
 
 private handleCompletionSwitches() {
@@ -689,7 +760,7 @@ def completionPercentage() {
 
 	def now = new Date().getTime()
 	def timeElapsed = now - atomicState.start
-	def totalRunTime = totalRunTimeMillis()
+	def totalRunTime = totalRunTimeMillis() ?: 1
 	def percentComplete = timeElapsed / totalRunTime * 100
 	log.debug "percentComplete: ${percentComplete}"
 
@@ -730,7 +801,7 @@ String displayableTime(timeRemaining) {
 		return "${minutes}:00"
 	}
 	def fraction = "0.${parts[1]}" as double
-	def seconds = "${60 * fraction as int}".padRight(2, "0")
+	def seconds = "${60 * fraction as int}".padLeft(2, "0")
 	return "${minutes}:${seconds}"
 }
 
@@ -817,24 +888,21 @@ private getRedHue(level) {
 	if (level >= 96) return 17
 }
 
+private dimmersContainUnsupportedDevices() {
+	def found = dimmers.find { hasSetLevelCommand(it) == false }
+	return found != null
+}
+
 private hasSetLevelCommand(device) {
-	def isDimmer = false
-	device.supportedCommands.each {
-		if (it.name.contains("setLevel")) {
-			isDimmer = true
-		}
-	}
-	return isDimmer
+	return hasCommand(device, "setLevel")
 }
 
 private hasSetColorCommand(device) {
-	def hasColor = false
-	device.supportedCommands.each {
-		if (it.name.contains("setColor")) {
-			hasColor = true
-		}
-	}
-	return hasColor
+	return hasCommand(device, "setColor")
+}
+
+private hasCommand(device, String command) {
+	return (device.supportedCommands.find { it.name == command } != null)
 }
 
 private dimmersWithSetColorCommand() {

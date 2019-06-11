@@ -79,6 +79,7 @@ def parse(String description) {
 	log.debug "description is $description"
 
 	def finalResult = zigbee.getKnownDescription(description)
+	def event = [:]
 
 	//TODO: Remove this after getKnownDescription can parse it automatically
 	if (!finalResult && description!="updated")
@@ -88,10 +89,11 @@ def parse(String description) {
 		log.info "final result = $finalResult"
 		if (finalResult.type == "update") {
 			log.info "$device updates: ${finalResult.value}"
+			event = null
 		}
 		else if (finalResult.type == "power") {
 			def powerValue = (finalResult.value as Integer)/10
-			sendEvent(name: "power", value: powerValue, descriptionText: '{{ device.displayName }} power is {{ value }} Watts', translatable: true )
+			event = createEvent(name: "power", value: powerValue, descriptionText: '{{ device.displayName }} power is {{ value }} Watts', translatable: true)
 			/*
 				Dividing by 10 as the Divisor is 10000 and unit is kW for the device. AttrId: 0302 and 0300. Simplifying to 10
 				power level is an integer. The exact power level with correct units needs to be handled in the device type
@@ -100,13 +102,28 @@ def parse(String description) {
 		}
 		else {
 			def descriptionText = finalResult.value == "on" ? '{{ device.displayName }} is On' : '{{ device.displayName }} is Off'
-			sendEvent(name: finalResult.type, value: finalResult.value, descriptionText: descriptionText, translatable: true)
+			event = createEvent(name: finalResult.type, value: finalResult.value, descriptionText: descriptionText, translatable: true)
 		}
 	}
 	else {
-		log.warn "DID NOT PARSE MESSAGE for description : $description"
-		log.debug zigbee.parseDescriptionAsMap(description)
+		def cluster = zigbee.parse(description)
+
+		if (cluster && cluster.clusterId == 0x0006 && cluster.command == 0x07){
+			if (cluster.data[0] == 0x00) {
+				log.debug "ON/OFF REPORTING CONFIG RESPONSE: " + cluster
+				event = createEvent(name: "checkInterval", value: 60 * 12, displayed: false, data: [protocol: "zigbee", hubHardwareId: device.hub.hardwareID])
+			}
+			else {
+				log.warn "ON/OFF REPORTING CONFIG FAILED- error code:${cluster.data[0]}"
+				event = null
+			}
+		}
+		else {
+			log.warn "DID NOT PARSE MESSAGE for description : $description"
+			log.debug "${cluster}"
+		}
 	}
+	return event
 }
 
 def off() {
@@ -116,23 +133,34 @@ def off() {
 def on() {
 	zigbee.on()
 }
+/**
+ * PING is used by Device-Watch in attempt to reach the Device
+ * */
+def ping() {
+	return zigbee.onOffRefresh()
+}
 
 def refresh() {
-	zigbee.onOffRefresh() + zigbee.refreshData("0x0B04", "0x050B")
+	zigbee.onOffRefresh() + zigbee.electricMeasurementPowerRefresh()
 }
 
 def configure() {
-	sendEvent(name: "checkInterval", value: 1200, displayed: false)
-	zigbee.onOffConfig() + powerConfig() + refresh()
+	// Device-Watch allows 2 check-in misses from device + ping (plus 1 min lag time)
+	// enrolls with default periodic reporting until newer 5 min interval is confirmed
+	sendEvent(name: "checkInterval", value: 2 * 10 * 60 + 1 * 60, displayed: false, data: [protocol: "zigbee", hubHardwareId: device.hub.hardwareID])
+
+	// OnOff minReportTime 0 seconds, maxReportTime 5 min. Reporting interval if no activity
+	refresh() + zigbee.onOffConfig(0, 300) + powerConfig()
 }
 
 //power config for devices with min reporting interval as 1 seconds and reporting interval if no activity as 10min (600s)
 //min change in value is 01
 def powerConfig() {
 	[
-		"zdo bind 0x${device.deviceNetworkId} 1 ${endpointId} 0x0B04 {${device.zigbeeId}} {}", "delay 200",
+		"zdo bind 0x${device.deviceNetworkId} 1 ${endpointId} 0x0B04 {${device.zigbeeId}} {}", "delay 2000",
 		"zcl global send-me-a-report 0x0B04 0x050B 0x29 1 600 {05 00}",				//The send-me-a-report is custom to the attribute type for CentraLite
-		"send 0x${device.deviceNetworkId} 1 ${endpointId}", "delay 500"
+		"delay 200",
+		"send 0x${device.deviceNetworkId} 1 ${endpointId}", "delay 2000"
 	]
 }
 

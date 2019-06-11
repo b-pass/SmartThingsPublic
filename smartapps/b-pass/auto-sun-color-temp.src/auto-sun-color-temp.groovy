@@ -38,7 +38,8 @@ preferences {
 
 def initialize() {
 	//    S M H dom m dow [y]
-	schedule("0 * * * * ?", checkTemp) // once per minute
+	//schedule("0 * * * * ?", checkTemp) // once per minute
+    runEvery1Minute(checkTemp)
     subscribe(bulbs, "switch", switchHandler)
 }
 
@@ -70,7 +71,7 @@ def calcColorTemperature() {
     def nowTime = now()
     //log.debug "wtf? $nowTime < $sunriseTime || $nowTime > $sunsetTime"
     if (nowTime < sunriseTime || nowTime > sunsetTime) {
-    	log.debug "It's dark, so color temp should be ${minTemp}"
+    	log.trace "It's dark, so color temp should be ${minTemp}"
     	return minTemp
     }
     
@@ -103,9 +104,13 @@ def calcColorTemperature() {
 }
 
 def checkTemp() {
+    def sunriseTime = getSunrise()
+    def sunsetTime = getSunset()
+    def nowTime = now()
+   	
 	def ct = calcColorTemperature()
 	bulbs.each {
-        if (it.currentColorTemperature != ct && it.currentSwitch == "on")
+        if (Math.abs(it.currentColorTemperature - ct) >= 5 && it.currentSwitch == "on")
         	it.setColorTemperature(ct)
     }
 }
