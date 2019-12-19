@@ -36,6 +36,7 @@ preferences {
 		input "nightLux", "decimal", default:20, required: true, title:"Night"
         input "preDawnLux", "decimal", default:10, required: true, title:"Pre-Dawn"
 		input "dayLux", "decimal", default:40, required: true, title:"Day"
+		input "onDimmerPercent", "decimal", default:30, required: true, title:"Dimmer Initial %"
 	}
     section("Special Times") {
     	input "nightAt", "time", required: false, title:"Night Time starts at"
@@ -47,24 +48,23 @@ def installed() {
 	log.debug "installed"
     
     state.squelchUntil = 0
-    state.oldLux = null
+    state.stormStopper = 0
+    state.oldLux = 0
     state.shouldBeOn = false
     
 	subscribe(luxSensor, "illuminance", luxHandler)
     subscribe(dimmer, "switch", dimmerHandler)
     subscribe(ctrlSwitch, "switch", ctrlSwitchHandler)
+    runEvery1Hour(checkLevels)
 }
 
 def updated() {
 	unsubscribe()
     
-    state.squelchUntil = 0
-    state.oldLux = null
-    state.shouldBeOn = false
-    
 	subscribe(luxSensor, "illuminance", luxHandler)
     subscribe(dimmer, "switch", dimmerHandler)
     subscribe(ctrlSwitch, "switch", ctrlSwitchHandler)
+    runEvery1Hour(checkLevels)
     
 	log.debug "updated"
 }
@@ -80,6 +80,8 @@ def getLuxTarget() {
 }
 
 def fixMe() {
+     //state.stormStopper = now() + 10*1000
+     
      dimmer.each {
     	if (it.currentSwitch == "on" && !state.shouldBeOn)
         {
@@ -87,9 +89,9 @@ def fixMe() {
         }
         if (it.currentSwitch == "off" && state.shouldBeOn)
         {
-            dimmer.setLevel(15)
+            dimmer.setLevel(onDimmerPercent)
             dimmer.on()
-            dimmer.setLevel(15)
+            dimmer.setLevel(onDimmerPercent)
         }
     }
     
@@ -105,8 +107,6 @@ def luxHandler(evt) {
     def oldLux = state.oldLux
     def currentLux = state.oldLux = evt.doubleValue
     //log.trace "luxHandler ${evt} ... old = ${oldLux} ... current = ${currentLux}"
-    if (oldLux == null)
-    	return // first run
     
     if (state.squelchUntil > now())
     {
@@ -143,7 +143,10 @@ def luxHandler(evt) {
     if (state.shouldBeOn)
     {
         def level = dimmer[0].currentLevel
-    	if (currentLux < (targetLux - luxAccuracy) && level < 100)
+        if (level == 100)
+           log.info "Won't change anything because light is on full blast... probably forced that way?"
+           
+    	if (currentLux < (targetLux - luxAccuracy) && level < 99)
         {
         	level += 1
             if (currentLux < (targetLux - luxAccuracy*2) && level < 95)
@@ -154,7 +157,7 @@ def luxHandler(evt) {
             return
         }
         
-        if (currentLux > (targetLux + luxAccuracy))
+        if (currentLux > (targetLux + luxAccuracy) && level <= 99)
         {
         	if (level <= 10)
             {
@@ -181,6 +184,7 @@ def luxHandler(evt) {
 }
 
 def dimmerHandler(evt) {
+log.trace "Dimmer handler: ${evt}"
 	if (evt.value.startsWith("turning"))
     	return
     
@@ -188,46 +192,49 @@ def dimmerHandler(evt) {
     if (evt.value != "on")
     {
     	if (state.shouldBeOn)
-        {
-          evt.device?.setLevel(15)
-          dimmer.on()
-          evt.device?.setLevel(15)
-        }
+          runIn(5, fixMe);
     }
     else
     {
     	if (!state.shouldBeOn)
-        {
-        	dimmer.off()
-    		state.squelchUntil = now() + 10*1000
-        }
+        	runIn(5, fixMe);
     }
 }
 
 def ctrlSwitchHandler(evt) {
+    log.trace "Control switch handle ${evt}"
 	if (evt.value?.startsWith("turning"))
     	return
     
-    log.trace "Control switch ${evt.device} is now ${evt.value}"
+    if (state.stormStopper > now())
+    {
+    	log.debug "Storm stopping light state chane of ${evt.device} to ${evt.value} until ${state.stormStopper}"
+    	return
+    }
     
     if (evt.value != "on")
     {
-    	log.debug "Turning dimmer(s) off"
+    	log.debug "Turning dimmer(s) off because of ${evt.device}"
+        state.overrideLux = 0
         state.shouldBeOn = false
     	state.squelchUntil = now() + 60*1000
+        state.stormStopper = now() + 3*1000
+        runIn(5, fixMe)
     	dimmer.off()
         ctrlSwitch.off()
     }
     else
     {
-    	log.debug "Turning dimmer(s) on"
+    	log.debug "Turning dimmer(s) on because of ${evt.device}"
         state.shouldBeOn = true
-    	state.squelchUntil = now() + 5*1000
-        dimmer.setLevel(15)
+    	state.squelchUntil = now() + 29*1000
+        state.stormStopper = now() + 3*1000
+        runIn(5, fixMe)
+        dimmer.setLevel(onDimmerPercent)
     	dimmer.on()
         ctrlSwitch.on()
-        dimmer.setLevel(15)
-        runIn(15, checkLevels)
+        dimmer.setLevel(onDimmerPercent)
+        runIn(30, checkLevels)
     }
 }
 
